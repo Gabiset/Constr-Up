@@ -1,295 +1,125 @@
+import axios from 'axios';
+
+// Cria a instância do Axios com a URL base da API do Laravel
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+/**
+ * 1. LISTAR PRODUTOS (GET)
+ * @param {Object} params - Parâmetros opcionais como page, search, etc.
+ */
+export async function fetchProducts(params = {}) {
+  const response = await api.get('/products', { params });
+  return response.data;
+}
+
+/**
+ * 2. CADASTRAR NOVO PRODUTO (POST)
+ * @param {Object} productData - Objeto contendo { name, description, brand, price, stock }
+ */
+export async function createProduct(productData) {
+  const response = await api.post('/products', productData);
+  return response.data;
+}
+
+/**
+ * 3. EDITAR / ATUALIZAR PRODUTO (PUT)
+ * @param {Number|String} id - ID do produto a ser editado
+ * @param {Object} productData - Objeto com os dados atualizados
+ */
+export async function updateProduct(id, productData) {
+  const response = await api.put(`/products/${id}`, productData);
+  return response.data;
+}
+
+/**
+ * 4. EXCLUIR PRODUTO (DELETE)
+ * @param {Number|String} id - ID do produto a ser excluído
+ */
+export async function deleteProduct(id) {
+  const response = await api.delete(`/products/${id}`);
+  return response.data;
+}
+
+export default api;
+
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import api from './services/api'
+import { ref, onMounted } from 'vue';
+import { 
+  fetchProducts, 
+  createProduct, 
+  updateProduct, 
+  deleteProduct 
+} from './services/api';
 
-const products = ref([])
-const loading = ref(false)
-const saving = ref(false)
-const errorMessage = ref('')
-const successMessage = ref('')
-const formVisible = ref(false)
-const editingId = ref(null)
+const produtos = ref([]);
+const carregando = ref(false);
 
-const emptyForm = () => ({
-  name: '',
-  description: '',
-  brand: '',
-  price: '',
-  stock: 0,
-})
-
-const form = reactive(emptyForm())
-
-const formTitle = computed(() => editingId.value ? 'Editar produto' : 'Cadastrar produto')
-
-function clearMessages() {
-  errorMessage.value = ''
-  successMessage.value = ''
-}
-
-function resetForm() {
-  Object.assign(form, emptyForm())
-  editingId.value = null
-}
-
-function openCreateForm() {
-  clearMessages()
-  resetForm()
-  formVisible.value = true
-}
-
-function openEditForm(product) {
-  clearMessages()
-  editingId.value = product.id
-  Object.assign(form, {
-    name: product.name ?? '',
-    description: product.description ?? '',
-    brand: product.brand ?? '',
-    price: Number(product.price ?? 0),
-    stock: Number(product.stock ?? 0),
-  })
-  formVisible.value = true
-  window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-function getErrorMessage(error) {
-  if (error.response?.status === 422) {
-    const errors = error.response.data.errors
-    if (errors) return Object.values(errors).flat().join(' ')
-  }
-  if (error.code === 'ECONNABORTED') return 'A API demorou para responder. Tente novamente.'
-  if (!error.response) return 'Não foi possível conectar à API. Confira se o Laravel está rodando.'
-  return error.response.data?.message || 'Ocorreu um erro inesperado.'
-}
-
-async function loadProducts() {
-  loading.value = true
-  errorMessage.value = ''
+// 1. Carregar lista de produtos
+const carregarProdutos = async () => {
+  carregando.value = true;
   try {
-    const response = await api.get('/products')
-    products.value = response.data.data ?? response.data
-  } catch (error) {
-    errorMessage.value = getErrorMessage(error)
+    const resposta = await fetchProducts();
+    produtos.value = resposta.data; // Formato padrão do Resource do Laravel
+  } catch (erro) {
+    console.error('Erro ao listar produtos:', erro);
   } finally {
-    loading.value = false
+    carregando.value = false;
   }
-}
+};
 
-async function saveProduct() {
-  clearMessages()
-
-  if (!form.name.trim() || !form.description.trim() || !form.brand.trim()) {
-    errorMessage.value = 'Preencha nome, descrição e marca.'
-    return
-  }
-  if (form.price === '' || Number(form.price) < 0 || !Number.isFinite(Number(form.price))) {
-    errorMessage.value = 'Informe um preço válido, igual ou maior que zero.'
-    return
-  }
-  if (form.stock === '' || !Number.isInteger(Number(form.stock)) || Number(form.stock) < 0) {
-    errorMessage.value = 'Informe um estoque inteiro, igual ou maior que zero.'
-    return
-  }
-
-  saving.value = true
-  const payload = {
-    name: form.name.trim(),
-    description: form.description.trim(),
-    brand: form.brand.trim(),
-    price: Number(form.price),
-    stock: Number(form.stock),
-  }
+// 2. Salvar (Criar novo produto)
+const salvarNovoProduto = async () => {
+  const novoProduto = {
+    name: 'Tinta Acrílica Branca',
+    description: 'Lata 18L fosca',
+    brand: 'Suvinil',
+    price: 289.90,
+    stock: 25
+  };
 
   try {
-    if (editingId.value) {
-      await api.put(`/products/${editingId.value}`, payload)
-      successMessage.value = 'Produto atualizado com sucesso.'
-    } else {
-      await api.post('/products', payload)
-      successMessage.value = 'Produto cadastrado com sucesso.'
-    }
-    formVisible.value = false
-    resetForm()
-    await loadProducts()
-  } catch (error) {
-    errorMessage.value = getErrorMessage(error)
-  } finally {
-    saving.value = false
+    await createProduct(novoProduto);
+    await carregarProdutos(); // Recarrega a lista
+  } catch (erro) {
+    console.error('Erro ao cadastrar produto:', erro);
   }
-}
+};
 
-async function deleteProduct(product) {
-  const confirmed = window.confirm(`Deseja excluir "${product.name}"? Essa ação não pode ser desfeita.`)
-  if (!confirmed) return
+// 3. Atualizar produto existente
+const atualizarProduto = async (id) => {
+  const dadosAtualizados = {
+    name: 'Tinta Acrílica Branca Premium',
+    description: 'Lata 18L fosca lavável',
+    brand: 'Suvinil',
+    price: 310.00,
+    stock: 20
+  };
 
-  clearMessages()
   try {
-    await api.delete(`/products/${product.id}`)
-    successMessage.value = 'Produto excluído com sucesso.'
-    await loadProducts()
-  } catch (error) {
-    errorMessage.value = getErrorMessage(error)
+    await updateProduct(id, dadosAtualizados);
+    await carregarProdutos();
+  } catch (erro) {
+    console.error('Erro ao editar produto:', erro);
   }
-}
+};
 
-function cancelForm() {
-  formVisible.value = false
-  resetForm()
-  clearMessages()
-}
+// 4. Remover produto
+const removerProduto = async (id) => {
+  try {
+    await deleteProduct(id);
+    await carregarProdutos();
+  } catch (erro) {
+    console.error('Erro ao excluir produto:', erro);
+  }
+};
 
-function formatPrice(value) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(Number(value || 0))
-}
-
-onMounted(loadProducts)
+onMounted(() => {
+  carregarProdutos();
+});
 </script>
-
-<template>
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="#" aria-label="Constr Up - início">
-        <span class="brand-mark">C</span>
-        <span>CONSTR <strong>UP</strong><small>GESTÃO DE PRODUTOS</small></span>
-      </a>
-      <span class="topbar-label">Painel administrativo</span>
-    </header>
-
-    <main class="container">
-      <section class="page-heading">
-        <div>
-          <p class="eyebrow">ESTOQUE · CATÁLOGO</p>
-          <h1>Produtos</h1>
-          <p class="subtitle">Gerencie os produtos cadastrados no sistema.</p>
-        </div>
-        <button class="button button-primary" type="button" @click="openCreateForm">
-          <span aria-hidden="true">＋</span> Novo produto
-        </button>
-      </section>
-
-      <div v-if="errorMessage" class="notice notice-error" role="alert">
-        <span>{{ errorMessage }}</span>
-        <button type="button" class="notice-close" aria-label="Fechar aviso" @click="errorMessage = ''">×</button>
-      </div>
-      <div v-if="successMessage" class="notice notice-success" role="status">
-        <span>{{ successMessage }}</span>
-        <button type="button" class="notice-close" aria-label="Fechar aviso" @click="successMessage = ''">×</button>
-      </div>
-
-      <section v-if="formVisible" class="panel form-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">{{ editingId ? 'ATUALIZAÇÃO' : 'NOVO CADASTRO' }}</p>
-            <h2>{{ formTitle }}</h2>
-          </div>
-          <button class="icon-button" type="button" aria-label="Fechar formulário" @click="cancelForm">×</button>
-        </div>
-
-        <form class="product-form" @submit.prevent="saveProduct">
-          <label class="field">
-            <span>Nome <b>*</b></span>
-            <input v-model="form.name" required maxlength="150" placeholder="Ex.: Cimento CP-II" />
-          </label>
-          <label class="field">
-            <span>Marca <b>*</b></span>
-            <input v-model="form.brand" required maxlength="120" placeholder="Ex.: Construmax" />
-          </label>
-          <label class="field field-wide">
-            <span>Descrição <b>*</b></span>
-            <textarea v-model="form.description" required maxlength="2000" rows="3" placeholder="Descreva o produto"></textarea>
-          </label>
-          <label class="field">
-            <span>Preço (R$) <b>*</b></span>
-            <input v-model="form.price" required type="number" min="0" step="0.01" placeholder="0,00" />
-          </label>
-          <label class="field">
-            <span>Estoque (unidades) <b>*</b></span>
-            <input v-model="form.stock" required type="number" min="0" step="1" placeholder="0" />
-          </label>
-          <div class="form-actions field-wide">
-            <button class="button button-secondary" type="button" @click="cancelForm">Cancelar</button>
-            <button class="button button-primary" type="submit" :disabled="saving">
-              {{ saving ? 'Salvando...' : (editingId ? 'Salvar alterações' : 'Cadastrar produto') }}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section class="stats-grid" aria-label="Resumo do estoque">
-        <article class="stat-card">
-          <span class="stat-icon">▦</span>
-          <div><p>Total de produtos</p><strong>{{ products.length }}</strong></div>
-        </article>
-        <article class="stat-card">
-          <span class="stat-icon stat-icon-gold">▤</span>
-          <div><p>Unidades em estoque</p><strong>{{ products.reduce((sum, item) => sum + Number(item.stock || 0), 0) }}</strong></div>
-        </article>
-        <article class="stat-card">
-          <span class="stat-icon stat-icon-blue">R$</span>
-          <div><p>Valor do estoque</p><strong>{{ formatPrice(products.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.stock || 0), 0)) }}</strong></div>
-        </article>
-      </section>
-
-      <section class="panel table-panel">
-        <div class="panel-heading table-heading">
-          <div>
-            <h2>Catálogo de produtos</h2>
-            <p class="muted">{{ products.length }} {{ products.length === 1 ? 'produto cadastrado' : 'produtos cadastrados' }}</p>
-          </div>
-          <button class="button button-secondary button-small" type="button" @click="loadProducts" :disabled="loading">
-            ↻ Atualizar
-          </button>
-        </div>
-
-        <div v-if="loading" class="empty-state">
-          <span class="loader"></span>
-          <p>Carregando produtos...</p>
-        </div>
-        <div v-else-if="products.length === 0" class="empty-state">
-          <span class="empty-icon">▦</span>
-          <h3>Nenhum produto por enquanto</h3>
-          <p>Cadastre o primeiro produto para começar a organizar seu catálogo.</p>
-          <button class="button button-primary" type="button" @click="openCreateForm">Cadastrar primeiro produto</button>
-        </div>
-        <div v-else class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Produto</th>
-                <th>Marca</th>
-                <th>Preço</th>
-                <th>Estoque</th>
-                <th class="actions-column">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="product in products" :key="product.id">
-                <td>
-                  <div class="product-name">{{ product.name }}</div>
-                  <div class="product-description">{{ product.description }}</div>
-                </td>
-                <td>{{ product.brand }}</td>
-                <td class="price-cell">{{ formatPrice(product.price) }}</td>
-                <td>
-                  <span class="stock-badge" :class="{ 'stock-low': Number(product.stock) < 5 }">
-                    {{ product.stock }} un.
-                  </span>
-                </td>
-                <td>
-                  <div class="row-actions">
-                    <button class="action-button edit-action" type="button" @click="openEditForm(product)">Editar</button>
-                    <button class="action-button delete-action" type="button" @click="deleteProduct(product)">Excluir</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <p class="page-footnote">Constr Up · Sistema de gerenciamento de produtos</p>
-    </main>
-  </div>
-</template>
