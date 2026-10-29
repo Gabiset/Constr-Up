@@ -1,86 +1,53 @@
-<?php
-
-namespace App\Http\Controllers\Api;
-
-use App\Http\Controllers\Controller;
-use App\Models\Product;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
-
-class ProductController extends Controller
 {
-    /**
-     * GET /api/products
-     */
-    public function index(): JsonResponse
-    {
-        $products = Product::query()
-            ->orderByDesc('created_at')
-            ->get();
+CREATE TABLE produtos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    descricao TEXT,
+    marca VARCHAR(50) NOT NULL,
+    preco DECIMAL(10, 2) NOT NULL,
+    estoque INT NOT NULL DEFAULT 0,
+    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-        return response()->json(['data' => $products]);
-    }
+-- Inserindo um único produto
+INSERT INTO produtos (nome, descricao, marca, preco, estoque) 
+VALUES ('Furadeira Impacto', 'Furadeira elétrica 750W 110V', 'Bosch', 359.90, 15);
 
-    /**
-     * POST /api/products
-     */
-    public function store(Request $request): JsonResponse
-    {
-        $validated = $request->validate($this->rules());
+-- Inserindo múltiplos produtos
+INSERT INTO produtos (nome, descricao, marca, preco, estoque) 
+VALUES 
+    ('Tinta Acrílica Branca', 'Lata de tinta fosca 18L', 'Suvinil', 289.00, 30),
+    ('Cimento CP II', 'Saco de cimento 50kg', 'Votoran', 38.50, 100);
 
-        $product = Product::create($validated);
+-- Listar todos os produtos
+SELECT * FROM produtos;
 
-        return response()->json([
-            'message' => 'Produto cadastrado com sucesso.',
-            'data' => $product,
-        ], 201);
-    }
+-- Listar apenas produtos em estoque com preço formatado
+SELECT id, nome, marca, preco, estoque 
+FROM produtos 
+WHERE estoque > 0 
+ORDER BY nome ASC;
 
-    /**
-     * GET /api/products/{product}
-     */
-    public function show(Product $product): JsonResponse
-    {
-        return response()->json(['data' => $product]);
-    }
+-- Buscar produto específico por ID
+SELECT * FROM produtos WHERE id = 1;
 
-    /**
-     * PUT/PATCH /api/products/{product}
-     */
-    public function update(Request $request, Product $product): JsonResponse
-    {
-        $validated = $request->validate($this->rules(isUpdate: true));
-        $product->update($validated);
+-- Atualizar preço e estoque de um produto específico
+UPDATE produtos 
+SET preco = 339.90, 
+    estoque = 20 
+WHERE id = 1;
 
-        return response()->json([
-            'message' => 'Produto atualizado com sucesso.',
-            'data' => $product->fresh(),
-        ]);
-    }
+-- Atualizar descrição e marca
+UPDATE produtos 
+SET descricao = 'Furadeira elétrica 750W 220V', 
+    marca = 'Bosch Pro' 
+WHERE id = 1;
 
-    /**
-     * DELETE /api/products/{product}
-     */
-    public function destroy(Product $product): JsonResponse
-    {
-        $product->delete();
+-- Excluir um produto por ID
+DELETE FROM produtos 
+WHERE id = 1;
 
-        return response()->json([
-            'message' => 'Produto excluído com sucesso.',
-        ]);
-    }
-
-    private function rules(bool $isUpdate = false): array
-    {
-        $required = $isUpdate ? 'sometimes' : 'required';
-
-        return [
-            'name' => [$required, 'string', 'max:150'],
-            'description' => [$required, 'string', 'max:2000'],
-            'brand' => [$required, 'string', 'max:120'],
-            'price' => [$required, 'numeric', 'min:0', 'max:99999999.99'],
-            'stock' => [$required, 'integer', 'min:0', 'max:2147483647'],
-        ];
-    }
+-- Excluir produtos com estoque zerado
+DELETE FROM produtos 
+WHERE estoque = 0;
 }
